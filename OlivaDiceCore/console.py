@@ -34,6 +34,8 @@ dictConsoleSwitchTemplate = {
         'messageSplitGate': 650,
         'messageSplitPageLimit': 10,
         'messageSplitDelay': 1000,
+        'messageSplitAutoShowPage': 1,
+        'messageSplitManualShowPage': 0,
         'largeRollLimit': 300,
         'multiRollDetail': 1,
         'randomMode': 0,
