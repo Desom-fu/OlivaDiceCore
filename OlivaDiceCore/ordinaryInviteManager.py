@@ -17,6 +17,22 @@ _  / / /_  /  __  / __ | / /__  /| |_  / / /__  / _  /    __  __/
 import OlivOS
 import OlivaDiceCore
 import hashlib
+import time
+
+
+group_member_increase_dedup_window = 3
+dictGroupMemberIncreaseDedup = {}
+
+
+def checkGroupMemberIncreaseDedup(bot_hash, group_key, user_key):
+    now_time = time.monotonic()
+    dedup_key = '%s|%s|%s' % (str(bot_hash), str(group_key), str(user_key))
+    last_time = dictGroupMemberIncreaseDedup.get(dedup_key)
+    dictGroupMemberIncreaseDedup[dedup_key] = now_time
+    for dedup_key_this in list(dictGroupMemberIncreaseDedup):
+        if now_time - dictGroupMemberIncreaseDedup[dedup_key_this] > group_member_increase_dedup_window:
+            del dictGroupMemberIncreaseDedup[dedup_key_this]
+    return last_time is not None and now_time - last_time < group_member_increase_dedup_window
 
 
 def unity_group_invite_request(plugin_event, Proc):
@@ -129,12 +145,15 @@ def unity_group_member_increase(plugin_event, Proc):
         tmp_hagID = str(plugin_event.data.group_id)
     # 检查是否是机器人自己加入群聊
     new_member_id = plugin_event.data.user_id
-    # 计算新成员的 bot hash
+    # 计算新成员的 hash
     hash_tmp = hashlib.new('md5')
     hash_tmp.update(str(new_member_id).encode(encoding='UTF-8'))
     hash_tmp.update(str(plugin_event.bot_info.platform['sdk']).encode(encoding='UTF-8'))
     hash_tmp.update(str(plugin_event.bot_info.platform['platform']).encode(encoding='UTF-8'))
     new_member_hash = hash_tmp.hexdigest()
+    # 检查是否是重复有加群事件
+    if checkGroupMemberIncreaseDedup(plugin_event.bot_info.hash, tmp_hagID, new_member_hash):
+        return
     # 如果是机器人自己加入群聊
     if new_member_hash == plugin_event.bot_info.hash:
         record_bot_join = OlivaDiceCore.console.getConsoleSwitchByHash('recordBotJoinGroup', plugin_event.bot_info.hash)

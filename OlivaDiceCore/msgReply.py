@@ -7317,34 +7317,84 @@ def replyMsgLazyHelpByEvent(plugin_event, help_key):
 # 原始接口调用
 
 
+def getSplitMessageInfoList(message: str, messageSplitGate: int):
+    res = []
+    flag_has_manual_split = '\f' in message
+    message_list = message.split('\f')
+    for message_list_this in message_list:
+        auto_split_list = splitMessageByGateKeepBracket(message_list_this, messageSplitGate)
+        if len(auto_split_list) > 1:
+            for auto_split_list_this in auto_split_list:
+                res.append({'message': auto_split_list_this, 'splitType': 'auto'})
+        elif len(auto_split_list) == 1:
+            split_type = 'manual' if flag_has_manual_split else 'single'
+            res.append({'message': auto_split_list[0], 'splitType': split_type})
+    return res
+
+
+def getSplitMessageShowPageFlag(split_type, messageSplitAutoShowPage, messageSplitManualShowPage):
+    if split_type == 'auto':
+        return messageSplitAutoShowPage == 1
+    if split_type == 'manual':
+        return messageSplitManualShowPage == 1
+    return False
+
+
+# 区分自动分页和手动分页，并且检测是否需要添加分页提示
+def sendSplitMessageList(
+    message_info_list,
+    messageSplitPageLimit,
+    messageSplitDelay,
+    messageSplitAutoShowPage,
+    messageSplitManualShowPage,
+    send_func,
+):
+    count = 1
+    flag_need_split = len(message_info_list) > 1
+    total_pages = min(len(message_info_list), messageSplitPageLimit)
+    for message_info_this in message_info_list:
+        tmp_message = message_info_this['message']
+        if len(tmp_message) > 0:
+            if flag_need_split and getSplitMessageShowPageFlag(
+                message_info_this['splitType'], messageSplitAutoShowPage, messageSplitManualShowPage
+            ):
+                tmp_message = '---[第%s/%s页]---\n%s' % (str(count), str(total_pages), tmp_message)
+            send_func(tmp_message)
+            if flag_need_split:
+                count += 1
+                time.sleep(messageSplitDelay)
+        if not flag_need_split or count > messageSplitPageLimit:
+            break
+
+
 def pluginReply(plugin_event, message):
     botHash = plugin_event.bot_info.hash
 
     messageSplitGate = OlivaDiceCore.console.getConsoleSwitchByHash('messageSplitGate', botHash)
     messageSplitPageLimit = OlivaDiceCore.console.getConsoleSwitchByHash('messageSplitPageLimit', botHash)
     messageSplitDelay = OlivaDiceCore.console.getConsoleSwitchByHash('messageSplitDelay', botHash)
+    messageSplitAutoShowPage = OlivaDiceCore.console.getConsoleSwitchByHash('messageSplitAutoShowPage', botHash)
+    messageSplitManualShowPage = OlivaDiceCore.console.getConsoleSwitchByHash('messageSplitManualShowPage', botHash)
     messageSplitDelay = messageSplitDelay / 1000
+    if messageSplitAutoShowPage is None:
+        messageSplitAutoShowPage = 1
+    if messageSplitManualShowPage is None:
+        messageSplitManualShowPage = 0
     message = message.replace('{SPLIT}', '\f')
 
     # 敏感词检测
     message = OlivaDiceCore.censorAPI.doCensorReplaceOlivOSSafe(botHash=botHash, msg=message)
 
-    message_list = message.split('\f')
-    message_list_new = []
-    for message_list_this in message_list:
-        message_list_new.extend(splitMessageByGateKeepBracket(message_list_this, messageSplitGate))
-    message_list = message_list_new
-    count = 1
-    flag_need_split = len(message_list) > 1
-    for message_list_this in message_list:
-        if len(message_list_this) > 0:
-            tmp_message = message_list_this
-            plugin_event.reply(tmp_message)
-            if flag_need_split:
-                count += 1
-                time.sleep(messageSplitDelay)
-        if not flag_need_split or count > messageSplitPageLimit:
-            break
+    # 获取分页信息列表并发送分页消息
+    message_info_list = getSplitMessageInfoList(message, messageSplitGate)
+    sendSplitMessageList(
+        message_info_list,
+        messageSplitPageLimit,
+        messageSplitDelay,
+        messageSplitAutoShowPage,
+        messageSplitManualShowPage,
+        plugin_event.reply,
+    )
 
 
 def pluginSend(plugin_event: OlivOS.API.Event, send_type, target_id, message: str, host_id=None):
@@ -7353,31 +7403,27 @@ def pluginSend(plugin_event: OlivOS.API.Event, send_type, target_id, message: st
     messageSplitGate = OlivaDiceCore.console.getConsoleSwitchByHash('messageSplitGate', botHash)
     messageSplitPageLimit = OlivaDiceCore.console.getConsoleSwitchByHash('messageSplitPageLimit', botHash)
     messageSplitDelay = OlivaDiceCore.console.getConsoleSwitchByHash('messageSplitDelay', botHash)
+    messageSplitAutoShowPage = OlivaDiceCore.console.getConsoleSwitchByHash('messageSplitAutoShowPage', botHash)
+    messageSplitManualShowPage = OlivaDiceCore.console.getConsoleSwitchByHash('messageSplitManualShowPage', botHash)
     messageSplitDelay = messageSplitDelay / 1000
+    if messageSplitAutoShowPage is None:
+        messageSplitAutoShowPage = 1
+    if messageSplitManualShowPage is None:
+        messageSplitManualShowPage = 0
     message = message.replace('{SPLIT}', '\f')
 
     # 敏感词检测
     message = OlivaDiceCore.censorAPI.doCensorReplaceOlivOSSafe(botHash=botHash, msg=message)
 
-    message_list = message.split('\f')
-    message_list_new = []
-    for message_list_this in message_list:
-        message_list_new.extend(splitMessageByGateKeepBracket(message_list_this, messageSplitGate))
-    message_list = message_list_new
-    count = 1
-    flag_need_split = len(message_list) > 1
-    total_pages = min(len(message_list), messageSplitPageLimit)
-    for message_list_this in message_list:
-        if len(message_list_this) > 0:
-            tmp_message = message_list_this
-            if flag_need_split:
-                tmp_message = '---[第%s/%s页]---\n%s' % (str(count), str(total_pages), message_list_this)
-            plugin_event.send(send_type, target_id, tmp_message, host_id=host_id)
-            if flag_need_split:
-                count += 1
-                time.sleep(messageSplitDelay)
-        if not flag_need_split or count > messageSplitPageLimit:
-            break
+    message_info_list = getSplitMessageInfoList(message, messageSplitGate)
+    sendSplitMessageList(
+        message_info_list,
+        messageSplitPageLimit,
+        messageSplitDelay,
+        messageSplitAutoShowPage,
+        messageSplitManualShowPage,
+        lambda tmp_message: plugin_event.send(send_type, target_id, tmp_message, host_id=host_id),
+    )
 
 
 def splitMessageByGateKeepBracket(message: str, gate: int):
