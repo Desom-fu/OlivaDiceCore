@@ -576,8 +576,10 @@ def getDrawDeck(key_str, bot_hash, count=1, valDict=None):
         dictStrCustom = OlivaDiceCore.msgCustom.dictStrCustomDict[bot_hash]
     if valDict is not None and 'dictTValue' in valDict:
         dictTValue = valDict['dictTValue']
-    key_str_resolved = resolveDrawDeckNameByIndex(key_str, bot_hash)
+    key_str_resolved = key_str
     if redirected_bot_hash in OlivaDiceCore.drawCardData.dictDeck:
+        if key_str not in OlivaDiceCore.drawCardData.dictDeck[redirected_bot_hash]:
+            key_str_resolved = resolveDrawDeckNameByIndex(key_str, bot_hash)
         if key_str_resolved in OlivaDiceCore.drawCardData.dictDeck[redirected_bot_hash]:
             if count >= 1 and count <= 10:
                 tmp_for_list = range(count)
@@ -641,6 +643,10 @@ def getDeckRecommend(key_str: str, bot_hash: str):
     return res
 
 
+def isVisibleDrawDeckName(deck_name):
+    return type(deck_name) is str and len(deck_name) > 0 and not deck_name.startswith('_')
+
+
 def getDrawDeckNameTable(bot_hash: str):
     res = []
 
@@ -651,7 +657,7 @@ def getDrawDeckNameTable(bot_hash: str):
         res = [
             deck_name_list_this
             for deck_name_list_this in deck_name_list
-            if (type(deck_name_list_this) is str and len(deck_name_list_this) > 0 and not deck_name_list_this.startswith('_'))
+            if isVisibleDrawDeckName(deck_name_list_this)
         ]
         # 按名称排序，保证数字索引映射稳定
         res.sort()
