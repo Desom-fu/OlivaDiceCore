@@ -576,8 +576,11 @@ def getDrawDeck(key_str, bot_hash, count=1, valDict=None):
         dictStrCustom = OlivaDiceCore.msgCustom.dictStrCustomDict[bot_hash]
     if valDict is not None and 'dictTValue' in valDict:
         dictTValue = valDict['dictTValue']
+    key_str_resolved = key_str
     if redirected_bot_hash in OlivaDiceCore.drawCardData.dictDeck:
-        if key_str in OlivaDiceCore.drawCardData.dictDeck[redirected_bot_hash]:
+        if key_str not in OlivaDiceCore.drawCardData.dictDeck[redirected_bot_hash]:
+            key_str_resolved = resolveDrawDeckNameByIndex(key_str, bot_hash)
+        if key_str_resolved in OlivaDiceCore.drawCardData.dictDeck[redirected_bot_hash]:
             if count >= 1 and count <= 10:
                 tmp_for_list = range(count)
                 tmp_card_list = []
@@ -590,7 +593,7 @@ def getDrawDeck(key_str, bot_hash, count=1, valDict=None):
                 ):
                     plugin_event = valDict['dictTValue']['vValDict']['vPluginEvent']
                 for tmp_for_list_this in tmp_for_list:
-                    tmp_draw_str = draw(key_str, bot_hash, mark_dict=None, plugin_event=plugin_event)
+                    tmp_draw_str = draw(key_str_resolved, bot_hash, mark_dict=None, plugin_event=plugin_event)
                     if tmp_draw_str is not None and type(tmp_draw_str) is str:
                         tmp_card_list.append(tmp_draw_str)
                 dictTValue['tDrawDeckResult'] = '\n'.join(tmp_card_list)
@@ -598,7 +601,7 @@ def getDrawDeck(key_str, bot_hash, count=1, valDict=None):
                 return tmp_reply_str
     tmp_recommend_list = []
     if OlivaDiceCore.console.getConsoleSwitchByHash('drawRecommendMode', bot_hash) == 1:
-        tmp_recommend_list = getDeckRecommend(key_str, bot_hash)
+        tmp_recommend_list = getDeckRecommend(key_str_resolved, bot_hash)
     if type(tmp_recommend_list) is list:
         if len(tmp_recommend_list) > 0:
             tmp_recommend_str = '\n'.join([
@@ -637,6 +640,41 @@ def getDeckRecommend(key_str: str, bot_hash: str):
                 if len(tmp_RecommendRank_list[count][1]) > 0 and tmp_RecommendRank_list[count][1][0] != '_':
                     res.append(tmp_RecommendRank_list[count][1])
         count += 1
+    return res
+
+
+def isVisibleDrawDeckName(deck_name):
+    return type(deck_name) is str and len(deck_name) > 0 and not deck_name.startswith('_')
+
+
+def getDrawDeckNameTable(bot_hash: str):
+    res = []
+
+    redirected_bot_hash = OlivaDiceCore.userConfig.getRedirectedBotHash(bot_hash)
+
+    if redirected_bot_hash in OlivaDiceCore.drawCardData.dictDeck:
+        deck_name_list = list(OlivaDiceCore.drawCardData.dictDeck[redirected_bot_hash].keys())
+        res = [
+            deck_name_list_this
+            for deck_name_list_this in deck_name_list
+            if isVisibleDrawDeckName(deck_name_list_this)
+        ]
+        # 按名称排序，保证数字索引映射稳定
+        res.sort()
+
+    return res
+
+
+def resolveDrawDeckNameByIndex(key_str: str, bot_hash: str):
+    res = key_str
+
+    if type(key_str) is str and key_str.isdecimal():
+        key_index = int(key_str)
+        if key_index >= 1:
+            deck_name_table = getDrawDeckNameTable(bot_hash)
+            if key_index <= len(deck_name_table):
+                res = deck_name_table[key_index - 1]
+
     return res
 
 
