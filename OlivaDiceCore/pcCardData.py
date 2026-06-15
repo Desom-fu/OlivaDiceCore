@@ -2212,8 +2212,8 @@ dictPcCardTemplateDefaultTemp = {
                 '启蒙术',
             ],
         },
-        'skillConfig': {'skipEnhance': ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']},
-        'init': {'STR': '4d6k3', 'DEX': '4d6k3', 'CON': '4d6k3', 'INT': '4d6k3', 'WIS': '4d6k3', 'CHA': '4d6k3'},
+        'skillConfig': {'skipEnhance': ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA', 'HP', 'HPMAX']},
+        'init': {'STR': '4d6k3', 'DEX': '4d6k3', 'CON': '4d6k3', 'INT': '4d6k3', 'WIS': '4d6k3', 'CHA': '4d6k3', 'HP': '10', 'HPMAX': '10'},
         'synonyms': {
             'STR': ['力量', 'STR', 'Strength'],
             'DEX': ['敏捷', 'DEX', 'Dexterity'],
@@ -2221,6 +2221,8 @@ dictPcCardTemplateDefaultTemp = {
             'INT': ['智力', 'INT', 'Intelligence'],
             'WIS': ['感知', 'WIS', 'Wisdom'],
             'CHA': ['魅力', 'CHA', 'Charisma'],
+            'HP': ['生命值', '体力', 'HP', 'HitPoints', '生命', '血量'],
+            'HPMAX': ['生命值上限', 'HPMAX', 'HitPointsMAX', '生命上限', '血量上限', '体力上限'],
             '运动': ['运动', 'Athletics'],
             '先攻': ['先攻', 'Initiative'],
             '速度': ['速度', 'Speed'],
@@ -2290,9 +2292,11 @@ dictPcCardTemplateDefaultTemp = {
             'INT': '智力',
             'WIS': '感知',
             'CHA': '魅力',
+            'HP': '生命',
+            'HPMAX': '生命上限',
         },
-        'snTitle': '{tName} AC{护甲等级} DC{法术豁免} PP{被动察觉}',
-        'defaultSkillValue': {'法术豁免': 8, '被动察觉': 10},
+        'snTitle': '{tName} hp{HP}/{HPMAX} AC{护甲等级} DC{法术豁免} PP{被动察觉}',
+        'defaultSkillValue': {'法术豁免': 8, '被动察觉': 10, 'HP': 10, 'HPMAX': 10},
         'checkRules': {
             'default': {
                 'checkList': ['greatSuccess', 'greatFail'],
