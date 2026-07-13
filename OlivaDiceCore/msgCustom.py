@@ -511,6 +511,16 @@ dictAdapterMapper = {
             'napcat_default': 'NapCat',
             'llonebot_default': 'LuckyLilliaBot/LLOneBot/LLTwoBot',
             'lagrange_default': 'LagrangeV1',
+            'milky_default': 'Milky',
+            'llonebot_milky': 'LuckyLilliaBot/Milky',
+            'lagrange_milky': 'LagrangeV2',
+            'yogurt_milky': 'Yogurt/Milky'
+        },
+        'milky': {
+            'default': 'Milky',
+            'llonebot_default': 'LuckyLilliaBot/Milky',
+            'lagrange_default': 'LagrangeV2',
+            'yogurt_default': 'Yogurt/Milky'
         }
     },
     'kaiheila': {'kaiheila_link': {'default': 'KOOK', 'text': 'KOOK'}},
