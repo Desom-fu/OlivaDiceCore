@@ -2062,10 +2062,12 @@ def unity_reply(plugin_event, Proc):
                         'tUserConfig': '',
                         'tTrustLevel': 'N/A',
                         'tTrustRank': 'N/A',
+                        'tHagId': '',
                     }
                     tmp_reply_str_temp = (
                         '[{tUserName}] - ({tUserId})'
                         '\n记录哈希: {tUserHash}'
+                        '{tHagId}'
                         '\n平台: {tUserPlatform}'
                         '\n最后触发: {tUserLastHit}'
                         '\n信任等级/评分: {tTrustLevel} / {tTrustRank}{tUserConfig}'
@@ -2078,8 +2080,10 @@ def unity_reply(plugin_event, Proc):
                         tmp_dictTValue['tUserName'] = tmp_userName
                     elif flag_userInfoType == 'group':
                         tmp_dictTValue['tUserName'] = '群'
+                        tmp_dictTValue['tHagId'] = '\n群号/频道号(hag_id): %s' % tmp_userId
                     elif flag_userInfoType == 'host':
                         tmp_dictTValue['tUserName'] = '频道'
+                        tmp_dictTValue['tHagId'] = '\n群号/频道号(hag_id): %s' % tmp_userId
                     tmp_dictTValue['tTrustLevel'] = str(
                         OlivaDiceCore.userConfig.getUserConfigByKeyWithHash(
                             userHash=tmp_userHash, userConfigKey='trustLevel', botHash=plugin_event.bot_info.hash
