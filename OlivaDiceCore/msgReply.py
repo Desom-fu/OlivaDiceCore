@@ -7236,7 +7236,93 @@ def replyMsg(plugin_event, message, at_user=False):
         at_user_msg = at_para.get_string_by_key('CQ')
         return OlivaDiceCore.msgReply.pluginReply(plugin_event, f'{at_user_msg} ' + str(message))
     else:
+        # qqGuildv2 平台在最后判断是否走 markdown 通道；其余平台走普通文本回复
+        if _isQQGuildv2MarkdownAble(plugin_event):
+            msg_str = str(message)
+            # CQ 图片/表情时 markdown 无法渲染，回退文本回复
+            if '[CQ:image' in msg_str or '[CQ:face' in msg_str:
+                return OlivaDiceCore.msgReply.pluginReply(plugin_event, msg_str)
+            return _replyMsgMarkdownQQGuildv2(plugin_event, msg_str)
         return OlivaDiceCore.msgReply.pluginReply(plugin_event, str(message))
+
+
+def _buildMarkdownFromCQString(message):
+    """将 CQ 格式的消息文本转译为 qqGuildv2 markdown 内容
+    使用 Message_templet('old_string', ...) 解析 CQ 段并逐 Para 转译；
+    at 通过 OlivOS markdown_tag 内置接口输出，纯文本取 data['text']，其余 Para 兜底用 CQ 码输出"""
+    md_content = ''
+    msg_para = OlivOS.messageAPI.Message_templet('old_string', str(message))
+    for para in msg_para.data:
+        if isinstance(para, OlivOS.messageAPI.PARA.at):
+            at_id = str(para.data.get('id', ''))
+            if at_id == 'all':
+                md_content += '<qqbot-at-everyone />'
+            else:
+                md_content += OlivOS.qqGuildv2SDK.markdown_tag.at_user(at_id)
+        elif isinstance(para, OlivOS.messageAPI.PARA.text):
+            md_content += para.data.get('text', '')
+        else:
+            # 其他 Para（如 reply、json 等）兜底，用 CQ 码输出
+            md_content += para.get_string_by_key('CQ')
+    return md_content
+
+
+def _isQQGuildv2MarkdownAble(plugin_event):
+    """检测当前事件是否来自 qqGuildv2 平台且具备 markdown 消息发送能力"""
+    res = False
+    try:
+        if (
+            plugin_event.platform['sdk'] == 'qqGuildv2_link'
+            and plugin_event.indeAPI is not None
+            and plugin_event.indeAPI.hasAPI('create_markdown_message')
+        ):
+            res = True
+    except Exception:
+        res = False
+    return res
+
+
+def _replyMsgMarkdownQQGuildv2(plugin_event, message):
+    """replyMsg 的 qqGuildv2 markdown 发送收口
+
+    完成敏感词检测后通过 Message_templet 解析 CQ 段并构建 markdown 内容，
+    发送失败时回退 pluginReply（此时保留原始消息，由 SDK 路径处理）
+    """
+    # 敏感词检测，与 pluginReply 一致
+    message = OlivaDiceCore.censorAPI.doCensorReplaceOlivOSSafe(
+        botHash=plugin_event.bot_info.hash, msg=str(message)
+    )
+    res_data = None
+    try:
+        extend_data = getattr(plugin_event.data, 'extend', {})
+        chat_type = 'qq_group' if extend_data.get('flag_from_qq', False) else 'guild_channel'
+        md_content = _buildMarkdownFromCQString(message)
+        res_data = plugin_event.indeAPI.create_markdown_message(
+            chat_type=chat_type,
+            chat_id=plugin_event.data.group_id,
+            markdown={'content': md_content},
+            msg_id=extend_data.get('reply_msg_id'),
+        )
+    except Exception:
+        res_data = None
+    if res_data is None or not res_data.get('active', False):
+        return OlivaDiceCore.msgReply.pluginReply(plugin_event, message)
+    return res_data
+
+
+def isQQGuildv2MarkdownAble(plugin_event):
+    """检测当前事件是否来自 qqGuildv2 平台且具备 markdown 消息发送能力"""
+    res = False
+    try:
+        if (
+            plugin_event.platform['sdk'] == 'qqGuildv2_link'
+            and plugin_event.indeAPI is not None
+            and plugin_event.indeAPI.hasAPI('create_markdown_message')
+        ):
+            res = True
+    except Exception:
+        res = False
+    return res
 
 
 def sendMsgByEvent(plugin_event, message, target_id, target_type, host_id=None):
