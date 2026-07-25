@@ -7234,16 +7234,17 @@ def replyMsg(plugin_event, message, at_user=False):
     if at_user:
         at_para = OlivOS.messageAPI.PARA.at(str(user_id))
         at_user_msg = at_para.get_string_by_key('CQ')
-        return OlivaDiceCore.msgReply.pluginReply(plugin_event, f'{at_user_msg} ' + str(message))
+        message = f'{at_user_msg} ' + str(message)
     else:
-        # qqGuildv2 平台在最后判断是否走 markdown 通道；其余平台走普通文本回复
-        if _isQQGuildv2MarkdownAble(plugin_event):
-            return _replyMsgMarkdownQQGuildv2(plugin_event, str(message))
-        return OlivaDiceCore.msgReply.pluginReply(plugin_event, str(message))
+        message = str(message)
+    # QQ Guild v2 仅在消息实际包含 at 段时使用 Markdown，其余消息保持普通文本通道。
+    if _isQQGuildv2MarkdownAble(plugin_event, message):
+        return _replyMsgMarkdownQQGuildv2(plugin_event, message)
+    return OlivaDiceCore.msgReply.pluginReply(plugin_event, message)
 
 
-def _isQQGuildv2MarkdownAble(plugin_event):
-    """检测当前事件是否来自 qqGuildv2 平台且具备 markdown 消息发送能力"""
+def _isQQGuildv2MarkdownAble(plugin_event, message):
+    """检测消息是否必须通过 QQ Guild v2 Markdown 通道发送 at。"""
     res = False
     try:
         if (
@@ -7251,7 +7252,14 @@ def _isQQGuildv2MarkdownAble(plugin_event):
             and plugin_event.indeAPI is not None
             and plugin_event.indeAPI.hasAPI('create_markdown_message')
         ):
-            res = True
+            if isinstance(message, OlivOS.messageAPI.Message_templet):
+                message_obj = message
+            else:
+                message_obj = OlivOS.messageAPI.Message_templet('old_string', str(message))
+            res = any(
+                isinstance(para_this, OlivOS.messageAPI.PARA.at)
+                for para_this in message_obj.data
+            )
     except Exception:
         res = False
     return res
@@ -7270,6 +7278,7 @@ def _replyMsgMarkdownQQGuildv2(plugin_event, message):
     # 用 Message_templet 解析 Para，拆分为 md 部分和文本部分
     md_content = ''
     plain_parts = []
+    quote_msg_id = None
     msg_para = OlivOS.messageAPI.Message_templet('old_string', str(message))
     for para in msg_para.data:
         if isinstance(para, OlivOS.messageAPI.PARA.at):
@@ -7280,20 +7289,36 @@ def _replyMsgMarkdownQQGuildv2(plugin_event, message):
                 md_content += OlivOS.qqGuildv2SDK.markdown_tag.at_user(at_id)
         elif isinstance(para, OlivOS.messageAPI.PARA.text):
             md_content += para.data.get('text', '')
+        elif isinstance(para, OlivOS.messageAPI.PARA.reply):
+            if quote_msg_id is None:
+                quote_id = para.data.get('id', None)
+                if quote_id is not None and str(quote_id) != '':
+                    quote_msg_id = str(quote_id)
         else:
-            # 图片、表情、reply 等走文本通道
+            # 图片、表情等媒体继续走 OlivOS 普通消息通道
             plain_parts.append(para)
     # 发送 markdown 部分（有内容时）
     md_ok = True
     if md_content != '':
         try:
             extend_data = getattr(plugin_event.data, 'extend', {})
-            chat_type = 'qq_group' if extend_data.get('flag_from_qq', False) else 'guild_channel'
+            flag_from_qq = extend_data.get('flag_from_qq', False)
+            flag_from_direct = extend_data.get('flag_from_direct', False)
+            if flag_from_qq:
+                chat_type = 'qq_private' if flag_from_direct else 'qq_group'
+                chat_id = plugin_event.data.user_id if flag_from_direct else plugin_event.data.group_id
+            else:
+                chat_type = 'guild_private' if flag_from_direct else 'guild_channel'
+                if flag_from_direct:
+                    chat_id = extend_data.get('host_group_id', None)
+                else:
+                    chat_id = plugin_event.data.group_id
             res_data = plugin_event.indeAPI.create_markdown_message(
                 chat_type=chat_type,
-                chat_id=plugin_event.data.group_id,
+                chat_id=chat_id,
                 markdown={'content': md_content},
                 msg_id=extend_data.get('reply_msg_id'),
+                quote_msg_id=quote_msg_id,
             )
             if res_data is None or not res_data.get('active', False):
                 md_ok = False
@@ -7303,9 +7328,11 @@ def _replyMsgMarkdownQQGuildv2(plugin_event, message):
     if not md_ok:
         return OlivaDiceCore.msgReply.pluginReply(plugin_event, message)
     # 发送媒体部分（图片/表情等）
+    if md_content == '' and quote_msg_id is not None:
+        plain_parts.insert(0, OlivOS.messageAPI.PARA.reply(id=quote_msg_id))
     if plain_parts:
         plain_msg = OlivOS.messageAPI.Message_templet('olivos_para', plain_parts)
-        return OlivaDiceCore.msgReply.pluginReply(plugin_event, plain_msg)
+        return OlivaDiceCore.msgReply.pluginReply(plugin_event, plain_msg.get('old_string'))
     return None
 
 
