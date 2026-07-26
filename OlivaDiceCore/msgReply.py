@@ -7671,9 +7671,11 @@ def msgIsCommand(data, prefix_list):
     res = False
     res_data = data
     if type(data) is str:
+        # 所有平台的命令统一忽略正文开头的空格。
+        command_data = skipSpaceStart(data)
         for prefix_list_this in prefix_list:
-            if isMatchWordStart(data, prefix_list_this):
-                res_data = getMatchWordStartRight(data, prefix_list_this)
+            if isMatchWordStart(command_data, prefix_list_this):
+                res_data = getMatchWordStartRight(command_data, prefix_list_this)
                 res = True
                 break
     return [res_data, res]
