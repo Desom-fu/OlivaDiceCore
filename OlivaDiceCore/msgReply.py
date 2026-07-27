@@ -2876,6 +2876,18 @@ def unity_reply(plugin_event, Proc):
                     )
                 replyMsg(plugin_event, tmp_reply_str)
             return
+        elif isMatchWordStart(tmp_reast_str_original, ['port', '引继'], isCommand=True):
+            # 人物卡引继(同骰引继码/跨骰数据码): 主体实现见 pcCardPorter.py, 此处仅保留入口
+            tmp_reast_str = getMatchWordStartRight(tmp_reast_str_original, ['port', '引继'])
+            OlivaDiceCore.pcCardPorter.replyPort(
+                plugin_event=plugin_event,
+                cmd_str=tmp_reast_str,
+                dictStrCustom=dictStrCustom,
+                dictTValue=dictTValue,
+                hagID=tmp_hagID,
+                flagIsFromMaster=flag_is_from_master,
+            )
+            return
         elif isMatchWordStart(tmp_reast_str_original, ['st', 'pc'], isCommand=True):
             tmp_reply_str = ''
             is_at, at_user_id, tmp_reast_str = parse_at_user(
