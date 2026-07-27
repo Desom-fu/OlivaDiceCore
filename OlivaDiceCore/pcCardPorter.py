@@ -1091,20 +1091,32 @@ def _parseAccountGreedyToken(token):
 def _splitAccountArgs(tokens):
     """从参数中拆出指定账号, 优先兼容旧写法, 新写法要求放在尾部"""
     rest = list(tokens)
+    suffixTokens = []
+    restNew = []
+    for tok in rest:
+        if str(tok).strip().lower() in ['split']:
+            suffixTokens.append(tok)
+        else:
+            restNew.append(tok)
+    rest = restNew
     for idx, tok in enumerate(rest):
         acct = _parseAccountToken(tok)
         if acct is not None:
-            return acct, rest[:idx] + rest[idx + 1:]
+            return acct, rest[:idx] + rest[idx + 1:] + suffixTokens
     if len(rest) >= 2:
         platform = _matchPortPlatform(rest[-2])
         userId = str(rest[-1]).strip()
         if platform is not None and userId != '':
-            return (userId, platform), rest[:-2]
+            return (userId, platform), rest[:-2] + suffixTokens
+        platform = _matchPortPlatform(rest[-1])
+        userId = str(rest[-2]).strip()
+        if platform is not None and userId != '':
+            return (userId, platform), rest[:-2] + suffixTokens
     if rest:
         acct = _parseAccountGreedyToken(rest[-1])
         if acct is not None:
-            return acct, rest[:-1]
-    return None, rest
+            return acct, rest[:-1] + suffixTokens
+    return None, rest + suffixTokens
 
 
 def _ttlText(botHash):
@@ -1238,7 +1250,7 @@ def replyPort(plugin_event, cmd_str, dictStrCustom, dictTValue, hagID, flagIsFro
             target_pcHash = OlivaDiceCore.pcCard.getPcHash(acct[0], acct[1])
             sourceUserId = str(acct[0])
             sourcePlatform = str(acct[1])
-            dictTValue['tPortTarget'] = '%s %s' % (acct[1], acct[0])
+            dictTValue['tPortTarget'] = '平台[%s] 账号[%s]' % (acct[1], acct[0])
         if flagOut:
             # 普通用户凭别人的同骰码导出对方数据
             codeArg = None
@@ -1257,6 +1269,8 @@ def replyPort(plugin_event, cmd_str, dictStrCustom, dictTValue, hagID, flagIsFro
                     sourceUserId = str(codeInfo['userId'])
                 if codeInfo.get('platform') is not None:
                     sourcePlatform = str(codeInfo['platform'])
+                if sourcePlatform not in ['', 'None'] and sourceUserId not in ['', 'None']:
+                    dictTValue['tPortTarget'] = '平台[%s] 账号[%s]' % (sourcePlatform, sourceUserId)
             if target_pcHash != tmp_pcHash and not collectUserData(target_pcHash)['cards']:
                 _reply(plugin_event, dictStrCustom, dictTValue, 'strPortTargetNoCard')
                 return
@@ -1307,14 +1321,21 @@ def replyPort(plugin_event, cmd_str, dictStrCustom, dictTValue, hagID, flagIsFro
             acct, pullArgs = _splitAccountArgs(pullArgs)
             if acct is not None:
                 src_pcHash = OlivaDiceCore.pcCard.getPcHash(acct[0], acct[1])
+                dictTValue['tPortTarget'] = '平台[%s] 账号[%s]' % (acct[1], acct[0])
         if pullArgs:
             code = pullArgs[0]
         if code is None and src_pcHash is None:
             _reply(plugin_event, dictStrCustom, dictTValue, 'strPortUsage')
             return
         if src_pcHash is None:
-            src_pcHash = peekPortCode(code)
-            flagByCode = src_pcHash is not None
+            codeInfo = peekPortCodeInfo(code)
+            if codeInfo is not None:
+                src_pcHash = codeInfo['pcHash']
+                flagByCode = True
+                if codeInfo.get('platform') is not None and codeInfo.get('userId') is not None:
+                    dictTValue['tPortTarget'] = '平台[%s] 账号[%s]' % (
+                        str(codeInfo['platform']), str(codeInfo['userId'])
+                    )
         if src_pcHash is None:
             _reply(plugin_event, dictStrCustom, dictTValue, 'strPortCodeInvalid')
             return
