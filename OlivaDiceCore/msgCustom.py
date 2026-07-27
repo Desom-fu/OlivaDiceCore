@@ -206,7 +206,7 @@ dictStrCustom = {
     'strPortCodeSameOther': '已为[{tPortTarget}]生成同骰引继码：{tPortCode}\n有效期{tPortTTL}, 一次性\n请交给对方在目标账号处发送 [.port pull {tPortCode}]',
     'strPortOutResult': '已生成跨骰引继码({tPortCardCount}张卡, {tPortLen}字)：\n{tPortCode}\n请在目标骰处发送 [.port in 上述引继码] 完成导入',
     'strPortOutResultSplit': '已按要求将跨骰引继码分为{tPortPartCount}段, 稍后逐段发出\n请在目标骰处逐段发送 [.port in 每段引继码](顺序不限)',
-    'strPortOutResultFile': '跨骰引继码共{tPortPartCount}段, 已整理为文件[{tPortFileName}]供下载\n如需直接逐段发送，请在导出时追加 [split]',
+    'strPortOutResultFile': '跨骰引继码共{tPortPartCount}段, 已整理为文件[{tPortFileName}]供下载\n文件内已写入来源平台、user_id 与导入方法；如需直接逐段发送，请在导出时追加 [split]',
     'strPortInPart': '已收到第{tPortPartIdx}/{tPortPartTotal}段, 还缺第{tPortPartMissing}段\n请继续发送 [.port in 剩余段]',
     'strPortInDone': '导入完成, 共{tPortCardCount}张卡：新增{tPortNewCount}张, 改名{tPortRenameCount}张, 覆盖{tPortOverwriteCount}张\n恢复群锁定{tPortLockCount}项\n导入的卡：{tPortCardList}',
     'strPortInEmpty': '这个引继码里没有人物卡数据',

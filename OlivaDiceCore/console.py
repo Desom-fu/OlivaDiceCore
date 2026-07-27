@@ -49,6 +49,7 @@ dictConsoleSwitchTemplate = {
         'portEnable': 1,
         'portCodeTTL': 86400,
         'portSplitGate': 550,
+        'portExportFileLimit': 10,
         'masterList': [],
         'noticeGroupList': [],
         'pulseUrlList': [],

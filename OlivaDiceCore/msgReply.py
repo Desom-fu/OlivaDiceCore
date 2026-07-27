@@ -58,6 +58,7 @@ def unity_init(plugin_event, Proc):
     OlivaDiceCore.msgCustomManager.saveMsgCustom(Proc.Proc_data['bot_info_dict'])
     OlivaDiceCore.helpDoc.initHelpDoc(Proc.Proc_data['bot_info_dict'])
     OlivaDiceCore.drawCard.initDeck(Proc.Proc_data['bot_info_dict'])
+    OlivaDiceCore.pcCardPorter.initPortExportDir()
     OlivaDiceCore.pcCard.dataPcCardTemplateDefaultInit()
     OlivaDiceCore.pcCard.dataPcCardTemplateInit()
     OlivaDiceCore.pcCard.dataPcCardLoadAll()

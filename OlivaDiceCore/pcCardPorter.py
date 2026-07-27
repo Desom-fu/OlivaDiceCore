@@ -76,7 +76,7 @@ MAX_CARDS = 128
 MAX_SKILLS_PER_CARD = 2048
 MAX_STR_LEN = 4096
 
-# 同骰引继码表: code -> {'pcHash':..., 'expire':..., 'byMaster':bool}
+# 同骰引继码表: code -> {'pcHash':..., 'userId':..., 'platform':..., 'expire':...}
 dictPortCode = {}
 
 # 跨骰码分段收集会话: pcHash -> {'transferId':..., 'total':..., 'parts':{idx:bytes}, 'expire':...}
@@ -920,10 +920,14 @@ def makePortCode(pcHash, botHash):
     return code
 
 
+def peekPortCodeInfo(code):
+    cleanPortCode()
+    return dictPortCode.get(str(code).strip().upper())
+
+
 def peekPortCode(code):
     """校验一个同骰引继码(不消耗), 返回 pcHash 或 None"""
-    cleanPortCode()
-    info = dictPortCode.get(str(code).strip().upper())
+    info = peekPortCodeInfo(code)
     if info is None:
         return None
     return info['pcHash']
@@ -953,11 +957,53 @@ def _getPortExportDir():
     return exportDir
 
 
-def _writePortGuideFile(pcHash, codes):
-    fileName = 'port_export_%s_%s.txt' % (pcHash[:8], int(time.time()))
+def initPortExportDir():
+    _getPortExportDir()
+
+
+def _cleanupPortExportFiles(botHash):
+    fileLimit = _getConsole('portExportFileLimit', botHash, 10)
+    if fileLimit <= 0:
+        return
+    exportDir = _getPortExportDir()
+    fileInfoList = []
+    for fileName in os.listdir(exportDir):
+        if not fileName.startswith('port_export_') or not fileName.endswith('.txt'):
+            continue
+        filePath = os.path.realpath(exportDir + '/' + fileName)
+        if not os.path.isfile(filePath):
+            continue
+        try:
+            fileMTime = os.path.getmtime(filePath)
+        except OSError:
+            continue
+        fileInfoList.append((fileMTime, fileName, filePath))
+    fileInfoList.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    for _fileMTime, _fileName, filePath in fileInfoList[fileLimit:]:
+        try:
+            os.remove(filePath)
+        except OSError:
+            pass
+
+
+def _writePortGuideFile(pcHash, codes, botHash, sourcePlatform=None, sourceUserId=None):
+    exportTimestamp = int(time.time())
+    hashSeed = '%s|%s|%s|%s|%s' % (
+        pcHash,
+        str(sourcePlatform or ''),
+        str(sourceUserId or ''),
+        str(time.time_ns()),
+        str(len(codes)),
+    )
+    shortHash = '%06X' % (zlib.crc32(hashSeed.encode('utf-8')) & 0xFFFFFF)
+    fileName = 'port_export_%s_%s_%s.txt' % (pcHash[:8], exportTimestamp, shortHash)
     filePath = _getPortExportDir() + '/' + fileName
     lineList = [
         'OlivaDice 跨骰引继码导入说明',
+        '',
+        '来源平台: %s' % str(sourcePlatform or '未知'),
+        '来源user_id: %s' % str(sourceUserId or '未知'),
+        '导出时间: %s' % time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(exportTimestamp)),
         '',
         '1. 机器人在聊天里直发时只发送引继码正文，不额外附上 .port in 命令前缀。',
         '2. 本文件中每一段都已补全为 .port in ODC1... 格式，可直接复制发送。',
@@ -979,6 +1025,7 @@ def _writePortGuideFile(pcHash, codes):
         ])
     with open(filePath, 'w', encoding='utf-8') as file_obj:
         file_obj.write('\n'.join(lineList).rstrip() + '\n')
+    _cleanupPortExportFiles(botHash)
     return filePath, fileName
 
 
@@ -1069,7 +1116,7 @@ def _ttlText(botHash):
     return '%s秒' % ttl
 
 
-def _exportUser(plugin_event, dictStrCustom, dictTValue, pcHash, args, botHash):
+def _exportUser(plugin_event, dictStrCustom, dictTValue, pcHash, args, botHash, sourcePlatform=None, sourceUserId=None):
     """处理 code out 的实际导出, args 为剩余参数 token 列表; 成功发码返回 True"""
     splitGate = _getConsole('portSplitGate', botHash, 550)
     flagAll = False
@@ -1111,7 +1158,9 @@ def _exportUser(plugin_event, dictStrCustom, dictTValue, pcHash, args, botHash):
         head = _fmt(dictStrCustom, dictTValue, 'strPortOutResultSplit')
         OlivaDiceCore.msgReply.replyMsg(plugin_event, head + '{SPLIT}' + '{SPLIT}'.join(codes))
     else:
-        filePath, fileName = _writePortGuideFile(pcHash, codes)
+        filePath, fileName = _writePortGuideFile(
+            pcHash, codes, botHash, sourcePlatform=sourcePlatform, sourceUserId=sourceUserId
+        )
         dictTValue['tPortPartCount'] = str(len(codes))
         dictTValue['tPortFileName'] = fileName
         dictTValue['tPortFilePath'] = filePath
@@ -1179,12 +1228,16 @@ def replyPort(plugin_event, cmd_str, dictStrCustom, dictTValue, hagID, flagIsFro
             flagOut = True
             args = args[1:]
         target_pcHash = tmp_pcHash
+        sourceUserId = str(tmp_userId)
+        sourcePlatform = str(tmp_platform)
         acct, rest = _splitAccountArgs(args)
         if acct is not None:
             if not flagIsFromMaster:
                 _reply(plugin_event, dictStrCustom, dictTValue, 'strPortNeedMaster')
                 return
             target_pcHash = OlivaDiceCore.pcCard.getPcHash(acct[0], acct[1])
+            sourceUserId = str(acct[0])
+            sourcePlatform = str(acct[1])
             dictTValue['tPortTarget'] = '%s %s' % (acct[1], acct[0])
         if flagOut:
             # 普通用户凭别人的同骰码导出对方数据
@@ -1195,15 +1248,28 @@ def replyPort(plugin_event, cmd_str, dictStrCustom, dictTValue, hagID, flagIsFro
                     rest.remove(tok)
                     break
             if codeArg is not None:
-                other = peekPortCode(codeArg)
-                if other is None:
+                codeInfo = peekPortCodeInfo(codeArg)
+                if codeInfo is None:
                     _reply(plugin_event, dictStrCustom, dictTValue, 'strPortCodeInvalid')
                     return
-                target_pcHash = other
+                target_pcHash = codeInfo['pcHash']
+                if codeInfo.get('userId') is not None:
+                    sourceUserId = str(codeInfo['userId'])
+                if codeInfo.get('platform') is not None:
+                    sourcePlatform = str(codeInfo['platform'])
             if target_pcHash != tmp_pcHash and not collectUserData(target_pcHash)['cards']:
                 _reply(plugin_event, dictStrCustom, dictTValue, 'strPortTargetNoCard')
                 return
-            if _exportUser(plugin_event, dictStrCustom, dictTValue, target_pcHash, rest, botHash):
+            if _exportUser(
+                plugin_event,
+                dictStrCustom,
+                dictTValue,
+                target_pcHash,
+                rest,
+                botHash,
+                sourcePlatform=sourcePlatform,
+                sourceUserId=sourceUserId,
+            ):
                 if codeArg is not None:
                     consumePortCode(codeArg)
             return
@@ -1215,6 +1281,8 @@ def replyPort(plugin_event, cmd_str, dictStrCustom, dictTValue, hagID, flagIsFro
                 _reply(plugin_event, dictStrCustom, dictTValue, 'strPortNoCard')
             return
         code = makePortCode(target_pcHash, botHash)
+        dictPortCode[code]['userId'] = sourceUserId
+        dictPortCode[code]['platform'] = sourcePlatform
         dictTValue['tPortCode'] = code
         dictTValue['tPortTTL'] = _ttlText(botHash)
         if target_pcHash != tmp_pcHash:
